@@ -1,0 +1,24 @@
+name: Sync Fork with Upstream
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight UTC
+  workflow_dispatch:    # Allows manual triggering
+
+jobs:
+  sync_with_upstream:
+    runs-on: ubuntu-latest
+    name: Sync main branch with upstream
+    steps:
+      - name: Checkout HEAD
+        uses: actions/checkout@v4
+        with:
+          ref: main # Target branch in your fork
+
+      - name: Pull upstream changes
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+        with:
+          upstream_sync_repo: qaz741wsd856/warden-worker
+          upstream_sync_branch: main
+          target_sync_branch: main
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
