@@ -209,14 +209,33 @@ fn validate_password_scope(value: Option<&str>, required: bool) -> Result<(), Ap
     }
 }
 
-fn parse_password_device_request(payload: &TokenRequest) -> Result<DeviceAuthRequest, AppError> {
+fn parse_password_device_request(
+    headers: &HeaderMap,
+    payload: &TokenRequest,
+) -> Result<DeviceAuthRequest, AppError> {
     validate_password_scope(payload.scope.as_deref(), true)?;
 
+    let client_id = payload.client_id.as_deref().or_else(|| {
+        headers.get("device-type").and(Some("browser"))
+    });
+
+    let identifier = payload.device_identifier.as_deref().or_else(|| {
+        headers.get("device-identifier").and_then(|h| h.to_str().ok())
+    });
+
+    let name = payload.device_name.as_deref().or_else(|| {
+        headers.get("device-name").and_then(|h| h.to_str().ok())
+    });
+
+    let r#type = payload.device_type.as_deref().or_else(|| {
+        headers.get("device-type").and_then(|h| h.to_str().ok())
+    });
+
     Ok(DeviceAuthRequest {
-        client_id: required_field(payload.client_id.as_deref(), "client_id")?,
-        identifier: required_field(payload.device_identifier.as_deref(), "device_identifier")?,
-        name: required_field(payload.device_name.as_deref(), "device_name")?,
-        r#type: parse_required_device_type(payload.device_type.as_deref(), "device_type")?,
+        client_id: required_field(client_id, "client_id")?,
+        identifier: required_field(identifier, "device_identifier")?,
+        name: required_field(name.or(Some("unknown")), "device_name")?,
+        r#type: parse_required_device_type(r#type, "device_type")?,
     })
 }
 
@@ -227,7 +246,7 @@ async fn authenticate_password_grant(
     username: &str,
 ) -> Result<PasswordGrantAuthContext, AppError> {
     let password_hash = required_field(payload.password.as_deref(), "password")?;
-    let device_request = parse_password_device_request(payload)?;
+    let device_request = parse_password_device_request(headers, payload)?;
     let user = User::find_by_email(db, &username.to_lowercase())
         .await?
         .ok_or_else(|| AppError::Unauthorized("Invalid credentials".to_string()))?;
@@ -282,7 +301,7 @@ async fn load_user_by_id(db: &crate::db::Db, user_id: &str) -> Result<User, AppE
         .bind(&[user_id.into()])?
         .first(None)
         .await
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?;
 
     let user_value = user_value.ok_or_else(|| AppError::BadRequest("invalid_grant".to_string()))?;
     serde_json::from_value(user_value).map_err(|_| AppError::Internal)
@@ -316,10 +335,10 @@ async fn maybe_upgrade_password_hash(
         &now,
         &user.id
     )
-    .map_err(|_| AppError::Database)?
+    .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?
     .run()
     .await
-    .map_err(|_| AppError::Database)?;
+    .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?;
 
     Ok(User {
         master_password_hash: new_hash,
@@ -569,10 +588,10 @@ pub async fn token(
                             new_last_used,
                             &tf.uuid
                         )
-                        .map_err(|_| AppError::Database)?
+                        .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?
                         .run()
                         .await
-                        .map_err(|_| AppError::Database)?;
+                        .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?;
 
                         should_issue_remember = payload.two_factor_remember == Some(1);
                     }
@@ -595,28 +614,28 @@ pub async fn token(
                             }
 
                             d1_query!(&db, "DELETE FROM twofactor WHERE user_uuid = ?1", &user.id)
-                                .map_err(|_| AppError::Database)?
+                                .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?
                                 .run()
                                 .await
-                                .map_err(|_| AppError::Database)?;
+                                .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?;
                             d1_query!(
                                 &db,
                                 "UPDATE users SET totp_recover = NULL WHERE id = ?1",
                                 &user.id
                             )
-                            .map_err(|_| AppError::Database)?
+                            .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?
                             .run()
                             .await
-                            .map_err(|_| AppError::Database)?;
+                            .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?;
                             d1_query!(
                                 &db,
                                 "UPDATE devices SET twofactor_remember = NULL WHERE user_id = ?1",
                                 &user.id
                             )
-                            .map_err(|_| AppError::Database)?
+                            .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?
                             .run()
                             .await
-                            .map_err(|_| AppError::Database)?;
+                            .map_err(|e| { log::error!("D1 error in identity.rs: {}", e); AppError::Database })?;
                         } else {
                             return Err(AppError::BadRequest(
                                 "Recovery code is incorrect".to_string(),

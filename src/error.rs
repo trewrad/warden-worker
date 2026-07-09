@@ -42,7 +42,7 @@ impl IntoResponse for AppError {
                 (StatusCode::BAD_REQUEST, Json(json_body)).into_response()
             }
             other => {
-                let (status, error_message) = match other {
+                let (status, error_message) = match &other {
                     AppError::Worker(e) => (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         format!("Worker error: {}", e),
@@ -51,10 +51,10 @@ impl IntoResponse for AppError {
                         StatusCode::INTERNAL_SERVER_ERROR,
                         "Database error".to_string(),
                     ),
-                    AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-                    AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-                    AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
-                    AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
+                    AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+                    AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+                    AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
+                    AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
                     AppError::Crypto(msg) => (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         format!("Crypto error: {}", msg),
@@ -65,6 +65,10 @@ impl IntoResponse for AppError {
                     ),
                     AppError::TwoFactorRequired(_) => unreachable!(),
                 };
+
+                if status.is_server_error() {
+                    log::error!("500 Error Generated: {:?}", other);
+                }
 
                 let body = Json(json!({ "error": error_message }));
                 (status, body).into_response()

@@ -62,12 +62,12 @@ impl Device {
             "SELECT * FROM devices WHERE user_id = ?1 ORDER BY updated_at DESC, created_at DESC",
             user_id
         )
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .all()
         .await
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .results()
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
 
         rows.into_iter()
             .map(|row| serde_json::from_value(row).map_err(|_| AppError::Internal))
@@ -85,10 +85,10 @@ impl Device {
             identifier,
             user_id
         )
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .first(None)
         .await
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
 
         row.map(|row| serde_json::from_value(row).map_err(|_| AppError::Internal))
             .transpose()
@@ -103,10 +103,10 @@ impl Device {
             "SELECT * FROM devices WHERE refresh_token = ?1",
             refresh_token
         )
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .first(None)
         .await
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
 
         row.map(|row| serde_json::from_value(row).map_err(|_| AppError::Internal))
             .transpose()
@@ -135,10 +135,10 @@ impl Device {
             &self.created_at,
             &self.updated_at
         )
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .run()
         .await
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
 
         Ok(())
     }
@@ -164,10 +164,10 @@ impl Device {
                     &identifier,
                     &user_id
                 )
-                .map_err(|_| AppError::Database)?
+                .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
                 .run()
                 .await
-                .map_err(|_| AppError::Database)?;
+                .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
                 device.name = name;
                 device.r#type = r#type;
                 device.updated_at = now;
@@ -190,10 +190,10 @@ impl Device {
             &self.identifier,
             &self.user_id
         )
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .run()
         .await
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
         self.updated_at = now;
         Ok(())
     }
@@ -212,10 +212,10 @@ impl Device {
             &self.identifier,
             &self.user_id
         )
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .run()
         .await
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
 
         self.push_token = push_token.map(str::to_owned);
         self.updated_at = now;
@@ -232,10 +232,10 @@ impl Device {
             &self.identifier,
             &self.user_id
         )
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .run()
         .await
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
 
         self.updated_at = now;
         Ok(())
@@ -255,10 +255,10 @@ impl Device {
             &self.identifier,
             &self.user_id
         )
-        .map_err(|_| AppError::Database)?
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
         .run()
         .await
-        .map_err(|_| AppError::Database)?;
+        .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
 
         self.twofactor_remember = twofactor_remember.map(str::to_owned);
         self.updated_at = now;
@@ -269,10 +269,10 @@ impl Device {
     /// logging out every active session.
     pub async fn delete_all_by_user(db: &crate::db::Db, user_id: &str) -> Result<(), AppError> {
         d1_query!(db, "DELETE FROM devices WHERE user_id = ?1", user_id)
-            .map_err(|_| AppError::Database)?
+            .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?
             .run()
             .await
-            .map_err(|_| AppError::Database)?;
+            .map_err(|e| { log::error!("D1 error in device.rs: {}", e); AppError::Database })?;
         Ok(())
     }
 }

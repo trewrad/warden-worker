@@ -158,7 +158,17 @@ export default {
           const name = shardKey ? `user:${shardKey}` : "user:default";
           const id = env.HEAVY_DO.idFromName(name);
           const stub = env.HEAVY_DO.get(id);
-          return stub.fetch(request, { body });
+
+          // Strip content-length header before providing a new body to avoid workerd TypeError
+          const headers = new Headers(request.headers);
+          headers.delete("content-length");
+          
+          return stub.fetch(request.url, {
+            method: request.method,
+            headers,
+            body,
+            redirect: request.redirect
+          });
         }
       } else if (shouldOffloadToHeavyDo(request, url)) {
         const shardKey = await getHeavyDoShardKey(request, url);

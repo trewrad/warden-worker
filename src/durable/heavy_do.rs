@@ -28,35 +28,45 @@ impl DurableObject for HeavyDo {
         // Keep fields used to avoid "unused" warnings even if we don't currently rely on them.
         let _ = &self.state;
 
-        // Convert worker::Request -> worker::HttpRequest so we can reuse axum Router.
-        let http_req: HttpRequest = req.try_into()?;
+        let res = async {
+            // Convert worker::Request -> worker::HttpRequest so we can reuse axum Router.
+            let http_req: HttpRequest = req.try_into().map_err(|e| format!("req.try_into error: {}", e))?;
 
-        // Extract base URL for /api/config endpoint (matches src/lib.rs behavior).
-        let uri = http_req.uri().clone();
-        let base_url = format!(
-            "{}://{}",
-            uri.scheme_str().unwrap_or("https"),
-            uri.authority().map(|a| a.as_str()).unwrap_or("localhost")
-        );
+            // Extract base URL for /api/config endpoint (matches src/lib.rs behavior).
+            let uri = http_req.uri().clone();
+            let base_url = format!(
+                "{}://{}",
+                uri.scheme_str().unwrap_or("https"),
+                uri.authority().map(|a| a.as_str()).unwrap_or("localhost")
+            );
 
-        // Allow all origins for CORS, matching the main worker.
-        let cors = CorsLayer::new()
-            .allow_methods(Any)
-            .allow_headers(Any)
-            .allow_origin(Any);
+            // Allow all origins for CORS, matching the main worker.
+            let cors = CorsLayer::new()
+                .allow_methods(Any)
+                .allow_headers(Any)
+                .allow_origin(Any);
 
-        // Match the main worker's default body limit (5MB) for regular API requests.
-        const BODY_LIMIT: usize = 5 * 1024 * 1024;
+            // Match the main worker's default body limit (5MB) for regular API requests.
+            const BODY_LIMIT: usize = 5 * 1024 * 1024;
 
-        // Reuse the existing router stack.
-        let mut app = router::api_router(self.env.clone())
-            .layer(Extension(BaseUrl(base_url)))
-            .layer(cors)
-            .layer(DefaultBodyLimit::max(BODY_LIMIT));
+            // Reuse the existing router stack.
+            let mut app = router::api_router(self.env.clone())
+                .layer(Extension(BaseUrl(base_url)))
+                .layer(cors)
+                .layer(DefaultBodyLimit::max(BODY_LIMIT));
 
-        let http_resp = app.call(http_req).await?;
+            let http_resp = app.call(http_req).await.map_err(|_| "app.call error".to_string())?;
 
-        // Convert http::Response -> worker::Response for the DO runtime.
-        http_resp.try_into()
+            // Convert http::Response -> worker::Response for the DO runtime.
+            http_resp.try_into().map_err(|e| format!("http_resp.try_into error: {}", e))
+        }.await;
+
+        match res {
+            Ok(r) => Ok(r),
+            Err(e) => {
+                log::error!("HeavyDo fetch failed: {}", e);
+                Response::error(e, 500)
+            }
+        }
     }
 }
