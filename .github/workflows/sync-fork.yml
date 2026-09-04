@@ -1,5 +1,8 @@
 name: Sync Fork with Upstream
 
+permissions:
+  contents: write
+
 on:
   schedule:
     - cron: '0 0 * * *' # Runs daily at midnight UTC
@@ -21,4 +24,4 @@ jobs:
           upstream_sync_repo: qaz741wsd856/warden-worker
           upstream_sync_branch: main
           target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          target_repo_token: ${{ secrets.SYNC_PAT }}
